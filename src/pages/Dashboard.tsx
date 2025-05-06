@@ -1,38 +1,93 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { fetchSkills, addSkill, deleteSkill, fetchContactMessages } from '@/services/supabaseService';
+import { toast } from '@/components/ui/use-toast';
+
+interface Skill {
+  id: string;
+  name: string;
+  category: string;
+}
+
+interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  created_at: string;
+}
 
 const Dashboard = () => {
-  // Sample state for skills management
-  const [skills, setSkills] = useState([
-    { id: 1, name: "React", category: "Frontend" },
-    { id: 2, name: "Node.js", category: "Backend" },
-    { id: 3, name: "TypeScript", category: "Frontend" }
-  ]);
-  
+  const queryClient = useQueryClient();
   const [newSkill, setNewSkill] = useState({ name: "", category: "" });
   
-  // Sample state for contact messages
-  const [messages, setMessages] = useState([
-    { id: 1, name: "Jane Smith", email: "jane@example.com", subject: "Job Opportunity", message: "I'd like to discuss a potential position at our company.", date: "2023-05-06" },
-    { id: 2, name: "John Brown", email: "john@example.com", subject: "Project Collaboration", message: "Interested in collaborating on an open source project.", date: "2023-05-05" }
-  ]);
+  // Query for fetching skills
+  const { 
+    data: skills = [],
+    isLoading: skillsLoading,
+    isError: skillsError 
+  } = useQuery({
+    queryKey: ['skills'],
+    queryFn: fetchSkills
+  });
 
-  // Function to add a new skill
+  // Query for fetching contact messages
+  const { 
+    data: messages = [],
+    isLoading: messagesLoading,
+    isError: messagesError 
+  } = useQuery({
+    queryKey: ['contactMessages'],
+    queryFn: fetchContactMessages
+  });
+
+  // Mutation for adding a skill
+  const addSkillMutation = useMutation({
+    mutationFn: ({ name, category }: { name: string, category: string }) => 
+      addSkill(name, category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+      setNewSkill({ name: "", category: "" });
+    }
+  });
+
+  // Mutation for deleting a skill
+  const deleteSkillMutation = useMutation({
+    mutationFn: (id: string) => deleteSkill(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+    }
+  });
+
+  // Function to handle adding a new skill
   const handleAddSkill = () => {
     if (newSkill.name && newSkill.category) {
-      setSkills([...skills, { id: Date.now(), ...newSkill }]);
-      setNewSkill({ name: "", category: "" });
+      addSkillMutation.mutate({ name: newSkill.name, category: newSkill.category });
+    } else {
+      toast({
+        title: "Validation Error",
+        description: "Both skill name and category are required.",
+        variant: "destructive",
+      });
     }
   };
 
-  // Function to delete a skill
-  const handleDeleteSkill = (id: number) => {
-    setSkills(skills.filter(skill => skill.id !== id));
+  // Function to handle deleting a skill
+  const handleDeleteSkill = (id: string) => {
+    deleteSkillMutation.mutate(id);
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
   };
 
   return (
@@ -76,7 +131,12 @@ const Dashboard = () => {
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button onClick={handleAddSkill}>Add Skill</Button>
+                  <Button 
+                    onClick={handleAddSkill} 
+                    disabled={addSkillMutation.isPending}
+                  >
+                    {addSkillMutation.isPending ? "Adding..." : "Add Skill"}
+                  </Button>
                 </CardFooter>
               </Card>
               
@@ -86,28 +146,41 @@ const Dashboard = () => {
                   <CardDescription>Manage your current skills</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Skill</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead className="w-[100px]">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {skills.map((skill) => (
-                        <TableRow key={skill.id}>
-                          <TableCell>{skill.name}</TableCell>
-                          <TableCell>{skill.category}</TableCell>
-                          <TableCell>
-                            <Button variant="destructive" size="sm" onClick={() => handleDeleteSkill(skill.id)}>
-                              Remove
-                            </Button>
-                          </TableCell>
+                  {skillsLoading ? (
+                    <p className="text-center py-4">Loading skills...</p>
+                  ) : skillsError ? (
+                    <p className="text-center py-4 text-destructive">Error loading skills</p>
+                  ) : skills.length === 0 ? (
+                    <p className="text-center py-4 text-muted-foreground">No skills added yet.</p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Skill</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead className="w-[100px]">Action</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {skills.map((skill: Skill) => (
+                          <TableRow key={skill.id}>
+                            <TableCell>{skill.name}</TableCell>
+                            <TableCell>{skill.category}</TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                onClick={() => handleDeleteSkill(skill.id)}
+                                disabled={deleteSkillMutation.isPending}
+                              >
+                                Remove
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -120,28 +193,36 @@ const Dashboard = () => {
                 <CardDescription>View messages from people who contacted you</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {messages.map((message) => (
-                      <TableRow key={message.id}>
-                        <TableCell>{message.name}</TableCell>
-                        <TableCell>{message.email}</TableCell>
-                        <TableCell>{message.subject}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{message.message}</TableCell>
-                        <TableCell>{message.date}</TableCell>
+                {messagesLoading ? (
+                  <p className="text-center py-4">Loading messages...</p>
+                ) : messagesError ? (
+                  <p className="text-center py-4 text-destructive">Error loading messages</p>
+                ) : messages.length === 0 ? (
+                  <p className="text-center py-4 text-muted-foreground">No contact messages yet.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Message</TableHead>
+                        <TableHead>Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {messages.map((message: ContactMessage) => (
+                        <TableRow key={message.id}>
+                          <TableCell>{message.name}</TableCell>
+                          <TableCell>{message.email}</TableCell>
+                          <TableCell>{message.subject}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{message.message}</TableCell>
+                          <TableCell>{formatDate(message.created_at)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
