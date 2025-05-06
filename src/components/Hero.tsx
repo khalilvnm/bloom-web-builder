@@ -15,7 +15,7 @@ const Hero = () => {
           </div>
           
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight animate-fade-up">
-            Building digital <span className="text-primary glow-text">solutions</span> for the modern web
+            <span className="text-primary glow-text">John Doe</span>
           </h1>
           
           <p className="text-foreground/70 text-lg md:text-xl max-w-2xl mx-auto mt-8 animate-fade-up" style={{ animationDelay: "200ms" }}>

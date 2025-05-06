@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { Link } from 'react-router-dom';
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -40,6 +41,14 @@ const Navbar = () => {
                 </a>
               </li>
             ))}
+            <li>
+              <Link
+                to="/dashboard"
+                className="text-foreground/80 hover:text-primary hover:glow-text transition-colors"
+              >
+                Dashboard
+              </Link>
+            </li>
           </ul>
         </nav>
 
